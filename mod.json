@@ -1,17 +1,11 @@
 {
-	"geode": "{{ geode }}",
+	"geode": "6.0.0",
 	"gd": {
-		"win": "2.2091",
-		"android": "2.2091",
-		"mac": "2.2091",
-		"ios": "2.2091"
+		"win": "2.2091"
 	},
-	"id": "{{ id }}",
-	"name": "{{ name }}",
-	"version": "{{ version }}",
-	"developer": "{{ developer }}",
-	"description": "{{ description }}",
-	"dependencies": {
-		"geode.node-ids": ">=v1.23.3"
-	}
+	"id": "mynick.first-mod",
+	"name": "My First Mod",
+	"version": "v1.0.0",
+	"developer": "mynick",
+	"description": "Моя первая кнопка в главном меню"
 }
