@@ -385,13 +385,7 @@ public:
         }
     }
 
-    void onOpenPresetManager(CCObject*) {
-        auto popup = PresetManagerPopup::create(this);
-
-        if (popup) {
-            popup->show();
-        }
-    }
+    void onOpenPresetManager(CCObject*);
 
     void onApplyPreset(CCObject* sender) {
         auto item = static_cast<CCNode*>(sender);
