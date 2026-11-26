@@ -1,8 +1,10 @@
 
 #include <Geode/Geode.hpp>
 #include <Geode/modify/LevelSearchLayer.hpp>
+#include <Geode/ui/NineSlice.hpp>
 #include <Geode/ui/ScrollLayer.hpp>
 #include <algorithm>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -61,6 +63,7 @@ struct matjson::Serialize<FilterPreset> {
         GEODE_UNWRAP_INTO(auto searchMode, value["searchMode"].asInt());
 
         FilterPreset preset;
+
         preset.name = std::move(name);
         preset.searchType = static_cast<int>(searchType);
         preset.query = std::move(query);
@@ -157,83 +160,49 @@ static CCMenuItemSpriteExtra* createLabeledButton(
     );
 }
 
-static float getReferenceButtonSize(CCMenu* menu) {
-    if (menu) {
-        auto reference = menu->getChildByType<CCMenuItemSpriteExtra>(0);
+static CCMenuItemSpriteExtra* createIconButton(
+    char const* frame,
+    CCObject* target,
+    SEL_MenuHandler callback,
+    float scale
+) {
+    auto sprite = CCSprite::createWithSpriteFrameName(frame);
 
-        if (reference) {
-            auto size = reference->getContentSize();
-
-            float result = std::max(
-                size.width * reference->getScaleX(),
-                size.height * reference->getScaleY()
-            );
-
-            if (result > 0.f) {
-                return result;
-            }
-        }
+    if (!sprite) {
+        return nullptr;
     }
 
-    return 52.f;
+    auto button = CCMenuItemSpriteExtra::create(
+        sprite,
+        target,
+        callback
+    );
+
+    if (button) {
+        button->setScale(scale);
+    }
+
+    return button;
 }
 
-static CCMenuItemSpriteExtra* createPresetLayoutButton(
-    std::string const& name,
-    int index,
-    float size,
-    CCObject* target,
-    SEL_MenuHandler callback
+static geode::NineSlice* createInputBackground(
+    float width,
+    float height
 ) {
-    auto background = CCScale9Sprite::createWithSpriteFrameName(
-        "GJ_button_01.png"
+    auto background = geode::NineSlice::createWithSpriteFrameName(
+        "GJ_button_02.png",
+        geode::NineSlice::Insets{8.f, 8.f, 8.f, 8.f}
     );
 
     if (!background) {
         return nullptr;
     }
 
-    background->setContentSize({size, size});
+    background->setContentSize({width, height});
+    background->setColor(ccColor3B(35, 50, 85));
+    background->setOpacity(230);
 
-    auto labelText = name;
-
-    if (labelText.size() > 4) {
-        labelText = labelText.substr(0, 3) + ".";
-    }
-
-    auto label = CCLabelBMFont::create(
-        labelText.c_str(),
-        "bigFont.fnt"
-    );
-
-    if (label) {
-        float availableWidth = size - 7.f;
-        float scale = 0.42f;
-
-        if (label->getContentSize().width * scale > availableWidth) {
-            scale = availableWidth / label->getContentSize().width;
-        }
-
-        label->setScale(scale);
-        label->setPosition({
-            size / 2.f,
-            size / 2.f
-        });
-
-        background->addChild(label);
-    }
-
-    auto button = CCMenuItemSpriteExtra::create(
-        background,
-        target,
-        callback
-    );
-
-    if (button) {
-        button->setTag(index);
-    }
-
-    return button;
+    return background;
 }
 
 static std::optional<FilterPreset> capturePreset(
@@ -288,8 +257,7 @@ class PresetManagerPopup;
 class $modify(PresetLevelSearchLayer, LevelSearchLayer) {
 public:
     struct Fields {
-        CCMenu* filterMenu = nullptr;
-        std::vector<CCNode*> presetItems;
+        CCMenu* presetMenu = nullptr;
     };
 
     bool init(int type) {
@@ -303,93 +271,65 @@ public:
     }
 
     void refreshPresetButtons() {
+        if (m_fields->presetMenu) {
+            this->removeChild(m_fields->presetMenu, true);
+            m_fields->presetMenu = nullptr;
+        }
+
         auto winSize = CCDirector::sharedDirector()->getWinSize();
 
-        auto menu = this->getChildByType<CCMenu>(0);
+        auto menu = CCMenu::create();
+        menu->setPosition({0.f, 0.f});
+        menu->setID("filter-presets-menu"_spr);
 
-        if (!menu) {
-            log::warn("Could not find the right-side filter menu.");
-            return;
-        }
+        this->addChild(menu, 1000);
+        m_fields->presetMenu = menu;
 
-        for (auto item : m_fields->presetItems) {
-            if (item && item->getParent() == menu) {
-                menu->removeChild(item, true);
-            }
-        }
-
-        m_fields->presetItems.clear();
-        m_fields->filterMenu = menu;
-
-        menu->setLayout(
-            ColumnLayout::create()
-                ->setAxisReverse(true)
-                ->setGap(10.f)
-                ->setAxisAlignment(AxisAlignment::End)
-        );
-
-        menu->setAnchorPoint({1.f, 0.5f});
-        menu->setPosition({
-            winSize.width - 5.f,
-            menu->getPositionY()
-        });
-
-        menu->setContentSize({
-            menu->getContentSize().width,
-            winSize.height - 10.f
-        });
-
-        float iconSize = getReferenceButtonSize(menu);
+        float centerX = winSize.width - 155.f;
+        float managerY = winSize.height * 0.87f;
 
         auto plusSprite = CCSprite::createWithSpriteFrameName(
             "GJ_plusBtn_001.png"
         );
 
         if (plusSprite) {
-            float dimension = std::max(
-                plusSprite->getContentSize().width,
-                plusSprite->getContentSize().height
-            );
-
-            if (dimension > 0.f) {
-                plusSprite->setScale(iconSize / dimension);
-            }
-
-            auto plusButton = CCMenuItemSpriteExtra::create(
+            auto managerButton = CCMenuItemSpriteExtra::create(
                 plusSprite,
                 this,
                 menu_selector(PresetLevelSearchLayer::onOpenPresetManager)
             );
 
-            if (plusButton) {
-                plusButton->setID("preset-manager-button"_spr);
-                menu->addChild(plusButton);
-                m_fields->presetItems.push_back(plusButton);
-            }
+            managerButton->setPosition({centerX, managerY});
+            menu->addChild(managerButton);
         }
 
         auto presets = loadPresets();
 
+        float startY = winSize.height * 0.78f;
+
         for (int i = 0; i < static_cast<int>(presets.size()); i++) {
-            auto button = createPresetLayoutButton(
+            auto button = createLabeledButton(
                 presets[i].name,
-                i,
-                iconSize,
+                140.f,
+                "GJ_button_01.png",
                 this,
-                menu_selector(PresetLevelSearchLayer::onApplyPreset)
+                menu_selector(PresetLevelSearchLayer::onApplyPreset),
+                0.38f
             );
 
             if (!button) {
                 continue;
             }
 
-            button->setID(("filter-preset-" + std::to_string(i)).c_str());
+            button->setTag(i);
+
+            button->setPosition({
+                centerX,
+                startY - i * 29.f
+            });
 
             menu->addChild(button);
-            m_fields->presetItems.push_back(button);
         }
-
-        menu->updateLayout();
     }
 
     void onOpenPresetManager(CCObject*);
@@ -474,13 +414,30 @@ protected:
     CCMenu* m_modeMenu = nullptr;
     CCMenu* m_actionMenu = nullptr;
 
+    CCLabelBMFont* m_actionHint = nullptr;
+
     int m_selectedIndex = -1;
     int m_selectedSearchType = 0;
+
+    float m_popupWidth = 0.f;
+    float m_popupHeight = 0.f;
 
     bool init(PresetLevelSearchLayer* owner) {
         m_owner = owner;
 
-        if (!Popup::init(460.f, 385.f)) {
+        auto winSize = CCDirector::sharedDirector()->getWinSize();
+
+        m_popupWidth = std::min(
+            460.f,
+            winSize.width * 0.84f
+        );
+
+        m_popupHeight = std::min(
+            385.f,
+            winSize.height * 0.84f
+        );
+
+        if (!Popup::init(m_popupWidth, m_popupHeight)) {
             return false;
         }
 
@@ -496,13 +453,22 @@ protected:
         listTitle->setScale(0.43f);
         listTitle->setPosition({
             size.width / 2.f,
-            size.height - 38.f
+            size.height - 36.f
         });
 
         m_mainLayer->addChild(listTitle);
 
+        float scrollWidth = size.width - 36.f;
+        float scrollHeight = std::max(
+            45.f,
+            size.height * 0.17f
+        );
+
+        float scrollTop = size.height - 58.f;
+        float scrollY = scrollTop - scrollHeight / 2.f;
+
         m_scrollLayer = geode::ScrollLayer::create(
-            CCSize(size.width - 36.f, 72.f)
+            CCSize(scrollWidth, scrollHeight)
         );
 
         if (!m_scrollLayer) {
@@ -512,57 +478,108 @@ protected:
         m_scrollLayer->setAnchorPoint({0.5f, 0.5f});
         m_scrollLayer->setPosition({
             size.width / 2.f,
-            size.height - 91.f
+            scrollY
         });
 
         m_scrollLayer->enableScrollClipping(true);
+
         m_mainLayer->addChild(m_scrollLayer, 2);
 
-        auto levelNameLabel = CCLabelBMFont::create(
-            "Level Name:",
-            "bigFont.fnt"
-        );
+        auto nameY = size.height * 0.28f;
+        auto levelNameY = size.height * 0.39f;
 
-        levelNameLabel->setScale(0.36f);
-        levelNameLabel->setAnchorPoint({0.f, 0.5f});
-        levelNameLabel->setPosition({28.f, 151.f});
-
-        m_mainLayer->addChild(levelNameLabel, 3);
-
-        m_levelNameInput = CCTextInputNode::create(
-            285.f,
-            30.f,
-            "",
-            "bigFont.fnt"
-        );
-
-        m_levelNameInput->setPosition({310.f, 151.f});
-        m_levelNameInput->setID("level-name-input"_spr);
-
-        m_mainLayer->addChild(m_levelNameInput, 5);
+        float labelX = 22.f;
+        float fieldX = 126.f;
+        float fieldWidth = size.width - fieldX - 18.f;
+        float fieldHeight = 34.f;
 
         auto nameLabel = CCLabelBMFont::create(
             "Preset Name:",
             "bigFont.fnt"
         );
 
-        nameLabel->setScale(0.36f);
+        nameLabel->setScale(0.34f);
         nameLabel->setAnchorPoint({0.f, 0.5f});
-        nameLabel->setPosition({28.f, 115.f});
+        nameLabel->setPosition({
+            labelX,
+            nameY
+        });
 
         m_mainLayer->addChild(nameLabel, 3);
 
+        auto nameBackground = createInputBackground(
+            fieldWidth,
+            fieldHeight
+        );
+
+        if (nameBackground) {
+            nameBackground->setPosition({
+                fieldX + fieldWidth / 2.f,
+                nameY
+            });
+
+            m_mainLayer->addChild(nameBackground, 2);
+        }
+
         m_nameInput = CCTextInputNode::create(
-            285.f,
+            fieldWidth - 18.f,
             30.f,
             "",
             "bigFont.fnt"
         );
 
-        m_nameInput->setPosition({310.f, 115.f});
+        m_nameInput->setPosition({
+            fieldX + fieldWidth / 2.f,
+            nameY
+        });
+
         m_nameInput->setID("preset-name-input"_spr);
 
         m_mainLayer->addChild(m_nameInput, 5);
+
+        auto levelNameLabel = CCLabelBMFont::create(
+            "Level Name:",
+            "bigFont.fnt"
+        );
+
+        levelNameLabel->setScale(0.34f);
+        levelNameLabel->setAnchorPoint({0.f, 0.5f});
+        levelNameLabel->setPosition({
+            labelX,
+            levelNameY
+        });
+
+        m_mainLayer->addChild(levelNameLabel, 3);
+
+        auto levelNameBackground = createInputBackground(
+            fieldWidth,
+            fieldHeight
+        );
+
+        if (levelNameBackground) {
+            levelNameBackground->setPosition({
+                fieldX + fieldWidth / 2.f,
+                levelNameY
+            });
+
+            m_mainLayer->addChild(levelNameBackground, 2);
+        }
+
+        m_levelNameInput = CCTextInputNode::create(
+            fieldWidth - 18.f,
+            30.f,
+            "",
+            "bigFont.fnt"
+        );
+
+        m_levelNameInput->setPosition({
+            fieldX + fieldWidth / 2.f,
+            levelNameY
+        });
+
+        m_levelNameInput->setID("level-name-input"_spr);
+
+        m_mainLayer->addChild(m_levelNameInput, 5);
 
         auto modeLabel = CCLabelBMFont::create(
             "Search Type",
@@ -572,7 +589,7 @@ protected:
         modeLabel->setScale(0.42f);
         modeLabel->setPosition({
             size.width / 2.f,
-            207.f
+            size.height * 0.60f
         });
 
         m_mainLayer->addChild(modeLabel, 3);
@@ -584,6 +601,20 @@ protected:
         }
 
         rebuildSearchModeButtons();
+
+        m_actionHint = CCLabelBMFont::create(
+            "Select a preset to edit or remove it.",
+            "bigFont.fnt"
+        );
+
+        m_actionHint->setScale(0.31f);
+        m_actionHint->setPosition({
+            size.width / 2.f,
+            size.height * 0.20f
+        });
+
+        m_mainLayer->addChild(m_actionHint, 3);
+
         refreshList();
 
         return true;
@@ -599,6 +630,8 @@ protected:
         m_modeMenu->setPosition({0.f, 0.f});
 
         m_mainLayer->addChild(m_modeMenu, 4);
+
+        float centerY = m_popupHeight * 0.52f;
 
         auto searchButton = createLabeledButton(
             "Search",
@@ -628,20 +661,29 @@ protected:
         );
 
         if (searchButton) {
-            searchButton->setPosition({85.f, 180.f});
-            searchButton->setOpacity(m_selectedSearchType == 0 ? 255 : 175);
+            searchButton->setPosition({
+                m_popupWidth * 0.19f,
+                centerY
+            });
+
             m_modeMenu->addChild(searchButton);
         }
 
         if (recentButton) {
-            recentButton->setPosition({230.f, 180.f});
-            recentButton->setOpacity(m_selectedSearchType == 4 ? 255 : 175);
+            recentButton->setPosition({
+                m_popupWidth * 0.50f,
+                centerY
+            });
+
             m_modeMenu->addChild(recentButton);
         }
 
         if (likedButton) {
-            likedButton->setPosition({375.f, 180.f});
-            likedButton->setOpacity(m_selectedSearchType == 2 ? 255 : 175);
+            likedButton->setPosition({
+                m_popupWidth * 0.81f,
+                centerY
+            });
+
             m_modeMenu->addChild(likedButton);
         }
     }
@@ -663,14 +705,14 @@ protected:
             m_selectedIndex = -1;
         }
 
-        auto scrollWidth = m_scrollLayer->getContentSize().width;
-        auto scrollHeight = m_scrollLayer->getContentSize().height;
+        float scrollWidth = m_popupWidth - 36.f;
+        float scrollHeight = m_scrollLayer->getContentSize().height;
 
         int rows = static_cast<int>((presets.size() + 1) / 2);
 
         float contentHeight = std::max(
             scrollHeight,
-            rows * 33.f + 8.f
+            rows * 33.f + 10.f
         );
 
         m_scrollLayer->m_contentLayer->setContentSize({
@@ -716,7 +758,7 @@ protected:
                     : "GJ_button_02.png",
                 this,
                 menu_selector(PresetManagerPopup::onSelectPreset),
-                0.38f
+                0.36f
             );
 
             if (!button) {
@@ -729,7 +771,7 @@ protected:
                 column == 0
                     ? scrollWidth * 0.25f
                     : scrollWidth * 0.75f,
-                contentHeight - 17.f - row * 33.f
+                contentHeight - 18.f - row * 33.f
             });
 
             m_listMenu->addChild(button);
@@ -742,56 +784,57 @@ protected:
 
         m_mainLayer->addChild(m_actionMenu, 5);
 
-        auto saveButton = createLabeledButton(
-            "Save",
-            105.f,
-            "GJ_button_01.png",
+        float actionY = m_popupHeight * 0.075f;
+
+        auto saveButton = createIconButton(
+            "GJ_plusBtn_001.png",
             this,
             menu_selector(PresetManagerPopup::onCreate),
-            0.43f
+            1.05f
         );
 
-        auto updateButton = createLabeledButton(
-            "Update",
-            115.f,
-            "GJ_button_01.png",
+        auto renameButton = createIconButton(
+            "GJ_editBtn_001.png",
             this,
-            menu_selector(PresetManagerPopup::onUpdate),
-            0.43f
+            menu_selector(PresetManagerPopup::onRename),
+            0.68f
         );
 
-        auto deleteSprite = CCSprite::createWithSpriteFrameName(
-            "GJ_deleteBtn_001.png"
+        auto deleteButton = createIconButton(
+            "GJ_deleteBtn_001.png",
+            this,
+            menu_selector(PresetManagerPopup::onDelete),
+            1.05f
         );
-
-        CCMenuItemSpriteExtra* deleteButton = nullptr;
-
-        if (deleteSprite) {
-            deleteButton = CCMenuItemSpriteExtra::create(
-                deleteSprite,
-                this,
-                menu_selector(PresetManagerPopup::onDelete)
-            );
-
-            if (deleteButton) {
-                deleteButton->setScale(0.85f);
-                deleteButton->setEnabled(m_selectedIndex >= 0);
-            }
-        }
 
         if (saveButton) {
-            saveButton->setPosition({85.f, 30.f});
+            saveButton->setPosition({
+                m_popupWidth * 0.18f,
+                actionY
+            });
+
             m_actionMenu->addChild(saveButton);
         }
 
-        if (updateButton) {
-            updateButton->setPosition({230.f, 30.f});
-            updateButton->setEnabled(m_selectedIndex >= 0);
-            m_actionMenu->addChild(updateButton);
+        if (renameButton) {
+            renameButton->setPosition({
+                m_popupWidth * 0.50f,
+                actionY
+            });
+
+            renameButton->setEnabled(m_selectedIndex >= 0);
+
+            m_actionMenu->addChild(renameButton);
         }
 
         if (deleteButton) {
-            deleteButton->setPosition({375.f, 30.f});
+            deleteButton->setPosition({
+                m_popupWidth * 0.82f,
+                actionY
+            });
+
+            deleteButton->setEnabled(m_selectedIndex >= 0);
+
             m_actionMenu->addChild(deleteButton);
         }
     }
@@ -825,6 +868,7 @@ protected:
 
         m_nameInput->setString(presets[index].name);
         m_levelNameInput->setString(presets[index].query);
+
         m_selectedSearchType = presets[index].searchType;
 
         rebuildSearchModeButtons();
@@ -889,7 +933,7 @@ protected:
         refreshList();
     }
 
-    void onUpdate(CCObject*) {
+    void onRename(CCObject*) {
         auto presets = loadPresets();
 
         if (m_selectedIndex < 0 ||
@@ -903,7 +947,7 @@ protected:
         if (name.find_first_not_of(" \t\r\n") == std::string::npos) {
             FLAlertLayer::create(
                 "Missing Name",
-                "Enter a preset name first.",
+                "Enter a new preset name first.",
                 "OK"
             )->show();
 
@@ -938,16 +982,11 @@ protected:
         }
 
         presets[m_selectedIndex] = *updatedPreset;
+
         savePresets(presets);
 
         m_owner->refreshPresetButtons();
         refreshList();
-
-        FLAlertLayer::create(
-            "Preset Updated",
-            "Your preset changes have been saved.",
-            "OK"
-        )->show();
     }
 
     void onDelete(CCObject*) {
@@ -975,6 +1014,7 @@ protected:
                 }
 
                 presets.erase(presets.begin() + index);
+
                 savePresets(presets);
 
                 m_selectedIndex = -1;
