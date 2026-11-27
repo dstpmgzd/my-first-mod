@@ -3,9 +3,24 @@
 	"gd": {
 		"win": "2.2091"
 	},
-	"id": "mynick.first-mod",
+	"id": "YOURNICK.first-mod",
 	"name": "My First Mod",
 	"version": "v1.0.0",
-	"developer": "mynick",
-	"description": "Моя первая кнопка в главном меню"
+	"developer": "YOURNICK",
+	"description": "Filter presets and a next level button",
+	"settings": {
+		"next-level-key": {
+			"type": "keybind",
+			"name": "Next level key",
+			"description": "Press this key on the level complete screen to do the same as the Next Level button.",
+			"default": "N",
+			"category": "gameplay"
+		},
+		"like-level": {
+			"type": "bool",
+			"name": "Like the level",
+			"description": "Like the level you just beat when you use the Next Level button.",
+			"default": true
+		}
+	}
 }
