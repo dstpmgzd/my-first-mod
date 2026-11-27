@@ -155,13 +155,7 @@ static std::string trimmed(std::string const& text) {
     return text.substr(begin, end - begin + 1);
 }
 
-// Sets the size of a button and remembers it, so it doesn't jump when pressed
-static void setButtonScale(CCMenuItemSpriteExtra* button, float scale) {
-    button->setScale(scale);
-    button->m_baseScale = scale;
-}
-
-// How wide a button really looks on screen
+// How wide a button really looks on screen (in game units)
 static float visualWidth(CCNode* button) {
     float width = button->getContentSize().width;
 
@@ -181,8 +175,8 @@ static CCMenuItemSpriteExtra* makeTextButton(
     char const* texture,
     CCObject* target,
     SEL_MenuHandler callback,
-    float height = 28.f,
-    float scale = 0.6f
+    float height = 26.f,
+    float scale = 0.55f
 ) {
     auto sprite = ButtonSprite::create(
         text.c_str(),
@@ -201,12 +195,14 @@ static CCMenuItemSpriteExtra* makeTextButton(
     return CCMenuItemSpriteExtra::create(sprite, target, callback);
 }
 
-// Button with an icon
+// Button with an icon, drawn at the given size (in game units).
+// The picture itself is scaled (not the button), exactly like the
+// game does it, so menu layouts can't change the size afterwards.
 static CCMenuItemSpriteExtra* makeIconButton(
     char const* frame,
+    float size,
     CCObject* target,
-    SEL_MenuHandler callback,
-    float scale
+    SEL_MenuHandler callback
 ) {
     auto sprite = CCSprite::createWithSpriteFrameName(frame);
 
@@ -214,13 +210,13 @@ static CCMenuItemSpriteExtra* makeIconButton(
         return nullptr;
     }
 
-    auto button = CCMenuItemSpriteExtra::create(sprite, target, callback);
+    float width = sprite->getContentSize().width;
 
-    if (button) {
-        setButtonScale(button, scale);
+    if (width > 0.f) {
+        sprite->setScale(size / width);
     }
 
-    return button;
+    return CCMenuItemSpriteExtra::create(sprite, target, callback);
 }
 
 // Text field with a proper background
@@ -313,7 +309,7 @@ protected:
     bool init(LevelSearchLayer* owner) {
         m_owner = owner;
 
-        if (!Popup::init(420.f, 290.f)) {
+        if (!Popup::init(420.f, 300.f)) {
             return false;
         }
 
@@ -322,10 +318,10 @@ protected:
         auto size = m_mainLayer->getContentSize();
         float centerX = size.width / 2.f;
 
-        // ---------- Preset list ----------
+        // ---------- Preset list (shows exactly 4 rows) ----------
         float listW = 380.f;
-        float listH = 110.f;
-        float listBottom = 132.f;
+        float listH = 116.f;
+        float listBottom = 138.f;
 
         auto listBg = CCScale9Sprite::create(
             "square02b_001.png",
@@ -354,8 +350,8 @@ protected:
         m_mainLayer->addChild(m_scroll, 2);
 
         // ---------- Text fields ----------
-        float nameY = 108.f;
-        float queryY = 76.f;
+        float nameY = 110.f;
+        float queryY = 77.f;
 
         m_nameInput = makeInput(250.f, "Preset name", 18);
         m_queryInput = makeInput(250.f, "Search text (optional)", 40);
@@ -402,7 +398,7 @@ protected:
         for (int i = 0; i < 3; i++) {
             auto sprite = ButtonSprite::create(
                 kModeNames[i],
-                84,
+                72,
                 true,
                 "bigFont.fnt",
                 "GJ_button_02.png",
@@ -421,7 +417,7 @@ protected:
             );
 
             item->setTag(i);
-            item->setPosition({165.f + i * 90.f, modeY});
+            item->setPosition({150.f + i * 88.f, modeY});
             m_menu->addChild(item);
 
             m_modeSprites[i] = sprite;
@@ -433,7 +429,7 @@ protected:
         m_mainLayer->addChild(m_status, 3);
 
         setStatus(
-            "Set your filters on the search screen, then save a preset",
+            "Set filters on the search screen, then save a preset",
             ccColor3B{255, 255, 255}
         );
 
@@ -451,8 +447,8 @@ protected:
         float width = m_status->getContentSize().width;
         float scale = 0.4f;
 
-        if (width > 0.f && width * scale > 390.f) {
-            scale = 390.f / width;
+        if (width > 0.f && width * scale > 360.f) {
+            scale = 360.f / width;
         }
 
         m_status->setScale(scale);
@@ -484,11 +480,11 @@ protected:
 
         float viewW = m_scroll->getContentSize().width;
         float viewH = m_scroll->getContentSize().height;
-        float rowH = 32.f;
+        float rowH = 27.f;
 
         float contentH = std::max(
             viewH,
-            static_cast<float>(presets.size()) * rowH + 6.f
+            static_cast<float>(presets.size()) * rowH
         );
 
         m_scroll->m_contentLayer->setContentSize({viewW, contentH});
@@ -510,11 +506,11 @@ protected:
         }
 
         for (int i = 0; i < static_cast<int>(presets.size()); i++) {
-            float y = contentH - 3.f - rowH / 2.f - i * rowH;
+            float y = contentH - rowH / 2.f - i * rowH;
 
             auto applyButton = makeTextButton(
                 presets[i].name,
-                262,
+                190,
                 "GJ_button_01.png",
                 this,
                 menu_selector(PresetsPopup::onApply)
@@ -522,33 +518,33 @@ protected:
 
             if (applyButton) {
                 applyButton->setTag(i);
-                applyButton->setPosition({137.f, y});
+                applyButton->setPosition({154.f, y});
                 m_listMenu->addChild(applyButton);
             }
 
             auto overwriteButton = makeIconButton(
                 "GJ_editBtn_001.png",
+                22.f,
                 this,
-                menu_selector(PresetsPopup::onOverwrite),
-                0.6f
+                menu_selector(PresetsPopup::onOverwrite)
             );
 
             if (overwriteButton) {
                 overwriteButton->setTag(i);
-                overwriteButton->setPosition({292.f, y});
+                overwriteButton->setPosition({276.f, y});
                 m_listMenu->addChild(overwriteButton);
             }
 
             auto deleteButton = makeIconButton(
                 "GJ_deleteBtn_001.png",
+                22.f,
                 this,
-                menu_selector(PresetsPopup::onDelete),
-                0.6f
+                menu_selector(PresetsPopup::onDelete)
             );
 
             if (deleteButton) {
                 deleteButton->setTag(i);
-                deleteButton->setPosition({328.f, y});
+                deleteButton->setPosition({306.f, y});
                 m_listMenu->addChild(deleteButton);
             }
         }
@@ -782,16 +778,29 @@ class $modify(PresetLevelSearchLayer, LevelSearchLayer) {
             return false;
         }
 
-        auto sprite = CCSprite::createWithSpriteFrameName("GJ_editBtn_001.png");
+        // The right column (clear filters, advanced filters, lists...)
+        CCNode* column = this->getChildByID("other-filter-menu");
 
-        if (!sprite) {
-            return true;
+        if (!column) {
+            column = this->getChildByType<CCMenu>(0);
         }
 
-        float nativeWidth = sprite->getContentSize().width;
+        // Size of the neighbouring buttons (used to make ours identical)
+        float size = 36.f;
 
-        auto button = CCMenuItemSpriteExtra::create(
-            sprite,
+        if (column) {
+            if (auto reference = column->getChildByIndex(0)) {
+                float referenceWidth = visualWidth(reference);
+
+                if (referenceWidth >= 28.f && referenceWidth <= 46.f) {
+                    size = referenceWidth;
+                }
+            }
+        }
+
+        auto button = makeIconButton(
+            "GJ_editBtn_001.png",
+            size * kButtonScaleTweak,
             this,
             menu_selector(PresetLevelSearchLayer::onOpenPresets)
         );
@@ -802,30 +811,9 @@ class $modify(PresetLevelSearchLayer, LevelSearchLayer) {
 
         button->setID("presets-button"_spr);
 
-        // The right column (clear filters, advanced filters, lists...)
-        CCNode* column = this->getChildByID("other-filter-menu");
-
-        if (!column) {
-            column = this->getChildByType<CCMenu>(0);
-        }
-
-        // Match the size of the neighbouring buttons exactly
-        float scale = 0.8f;
-
-        if (column) {
-            if (auto reference = column->getChildByIndex(0)) {
-                float referenceWidth = visualWidth(reference);
-
-                if (referenceWidth > 5.f && nativeWidth > 0.f) {
-                    scale = referenceWidth / nativeWidth;
-                }
-            }
-        }
-
-        setButtonScale(button, scale * kButtonScaleTweak);
-
         if (column && column->getLayout()) {
-            column->addChild(button);
+            // High z-order = the button goes to the very bottom of the column
+            column->addChild(button, 100);
             column->updateLayout();
         } else {
             // Fallback: our own small menu near the right edge
