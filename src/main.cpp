@@ -524,7 +524,7 @@ protected:
 
             auto overwriteButton = makeIconButton(
                 "GJ_editBtn_001.png",
-                22.f,
+                23.f,
                 this,
                 menu_selector(PresetsPopup::onOverwrite)
             );
@@ -537,7 +537,7 @@ protected:
 
             auto deleteButton = makeIconButton(
                 "GJ_deleteBtn_001.png",
-                22.f,
+                23.f,
                 this,
                 menu_selector(PresetsPopup::onDelete)
             );
