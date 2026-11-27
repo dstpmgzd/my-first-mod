@@ -1,5 +1,6 @@
 #include <Geode/Geode.hpp>
 #include <Geode/modify/LevelSearchLayer.hpp>
+#include <Geode/ui/GeodeUI.hpp>
 #include <Geode/ui/ScrollLayer.hpp>
 #include <Geode/ui/TextInput.hpp>
 #include <algorithm>
@@ -386,6 +387,31 @@ protected:
             m_menu->addChild(saveButton);
         }
 
+        // Settings button (top right corner of the window)
+        auto settingsButton = makeIconButton(
+            "GJ_optionsBtn02_001.png",
+            26.f,
+            this,
+            menu_selector(PresetsPopup::onOpenSettings)
+        );
+
+        if (!settingsButton) {
+            settingsButton = makeTextButton(
+                "Settings",
+                70,
+                "GJ_button_02.png",
+                this,
+                menu_selector(PresetsPopup::onOpenSettings),
+                22.f,
+                0.45f
+            );
+        }
+
+        if (settingsButton) {
+            settingsButton->setPosition({size.width - 30.f, size.height - 26.f});
+            m_menu->addChild(settingsButton);
+        }
+
         // Label and three list type buttons
         float modeY = 46.f;
 
@@ -524,7 +550,7 @@ protected:
 
             auto overwriteButton = makeIconButton(
                 "GJ_editBtn_001.png",
-                23.f,
+                22.f,
                 this,
                 menu_selector(PresetsPopup::onOverwrite)
             );
@@ -537,7 +563,7 @@ protected:
 
             auto deleteButton = makeIconButton(
                 "GJ_deleteBtn_001.png",
-                23.f,
+                22.f,
                 this,
                 menu_selector(PresetsPopup::onDelete)
             );
@@ -602,6 +628,10 @@ protected:
     }
 
     // ---------- Button handlers ----------
+
+    void onOpenSettings(CCObject*) {
+        geode::openSettingsPopup(Mod::get());
+    }
 
     void onSelectMode(CCObject* sender) {
         int index = static_cast<CCNode*>(sender)->getTag();
